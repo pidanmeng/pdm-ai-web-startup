@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "workflow",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Volumes/SSD/_xs/xs-ai-platform/.archify/workflow-ai-grading-20261112-145941/candidate.json",
+    "sha256": "f3e7687b15a0f61cb5bef9adab3d9190cf35eb5143665a797704b5b55de4f5a0",
+    "bytes": 5500
+  },
+  "artifact": {
+    "path": "/Volumes/SSD/_xs/xs-ai-platform/.archify/workflow-ai-grading-20261112-145941/ai-grading-workflow.html",
+    "sha256": "b2c720cd9c6b65b5ee3b4158479b6143c490e14b3a7935895c9c2edc3d67269d",
+    "bytes": 857152
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Volumes/SSD/_xs/xs-ai-platform/.archify/workflow-ai-grading-20261112-145941/ai-grading-workflow.finalize.json",
+    "summaryReceipt": "/Volumes/SSD/_xs/xs-ai-platform/.archify/workflow-ai-grading-20261112-145941/ai-grading-workflow.finalize-summary.json",
+    "browserCheckReceipt": "/Volumes/SSD/_xs/xs-ai-platform/.archify/workflow-ai-grading-20261112-145941/ai-grading-workflow.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "durationMs": 2499,
+  "browserCheck": {
+    "requested": true,
+    "ran": true
+  }
+}

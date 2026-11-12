@@ -1,0 +1,472 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "公务员遴选 AI 教培中台 · 系统架构",
+    "locale": "zh-CN",
+    "output": ".archify/architecture-xs-ai-platform-20261112-145308/xs-ai-platform-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    {
+      "id": "teacher",
+      "type": "external",
+      "label": "教研老师",
+      "sublabel": "建考试 · 传要点 · 终审",
+      "pos": [
+        40,
+        240
+      ],
+      "size": [
+        140,
+        76
+      ]
+    },
+    {
+      "id": "reviewer",
+      "type": "external",
+      "label": "审核员",
+      "sublabel": "判分 / 交付复核",
+      "pos": [
+        40,
+        440
+      ],
+      "size": [
+        140,
+        76
+      ]
+    },
+    {
+      "id": "wechat",
+      "type": "security",
+      "label": "微信开放平台",
+      "sublabel": "OAuth 2.0 扫码登录",
+      "pos": [
+        250,
+        70
+      ],
+      "size": [
+        160,
+        76
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Next.js 工作台",
+      "sublabel": "Shadcn · Tailwind · zustand",
+      "tag": "App Router",
+      "pos": [
+        250,
+        240
+      ],
+      "size": [
+        170,
+        92
+      ]
+    },
+    {
+      "id": "copilot",
+      "type": "frontend",
+      "label": "CopilotKit 助手",
+      "sublabel": "AI SDK 流式批注",
+      "tag": "增量重生成",
+      "pos": [
+        250,
+        440
+      ],
+      "size": [
+        170,
+        88
+      ]
+    },
+    {
+      "id": "rbac",
+      "type": "security",
+      "label": "用户组与权限",
+      "sublabel": "菜单 / 页面 / 操作级",
+      "tag": "管理员配置",
+      "pos": [
+        480,
+        70
+      ],
+      "size": [
+        150,
+        84
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "Elysia API",
+      "sublabel": "OpenAPI · SSE · 鉴权",
+      "tag": "Bun",
+      "pos": [
+        480,
+        250
+      ],
+      "size": [
+        150,
+        100
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "type": "backend",
+      "label": "批改编排",
+      "sublabel": "状态机 · 审核分配",
+      "tag": "幂等 · 断点续跑",
+      "pos": [
+        700,
+        250
+      ],
+      "size": [
+        160,
+        100
+      ]
+    },
+    {
+      "id": "queue",
+      "type": "messagebus",
+      "label": "异步任务队列",
+      "sublabel": "批处理 · 限流 · 重试",
+      "tag": "pg-boss",
+      "pos": [
+        930,
+        256
+      ],
+      "size": [
+        150,
+        88
+      ]
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "AI Worker",
+      "sublabel": "解析 · 判分 · 生成",
+      "tag": "批处理",
+      "pos": [
+        1150,
+        250
+      ],
+      "size": [
+        150,
+        100
+      ]
+    },
+    {
+      "id": "ai",
+      "type": "cloud",
+      "label": "LLM 网关",
+      "sublabel": "结构化输出 · 重试 · 计量",
+      "tag": "多模型路由",
+      "pos": [
+        1360,
+        250
+      ],
+      "size": [
+        150,
+        96
+      ]
+    },
+    {
+      "id": "corpus",
+      "type": "database",
+      "label": "语料库",
+      "sublabel": "提升建议 · 问题模板 · 要点",
+      "tag": "可增删改",
+      "pos": [
+        480,
+        470
+      ],
+      "size": [
+        160,
+        92
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "考试 / 答卷 / 评分 / 批注",
+      "tag": "Drizzle · pgvector",
+      "pos": [
+        700,
+        470
+      ],
+      "size": [
+        170,
+        96
+      ]
+    },
+    {
+      "id": "oss",
+      "type": "cloud",
+      "label": "对象存储",
+      "sublabel": "原卷 · 要点文件 · 导出",
+      "tag": "S3 兼容",
+      "pos": [
+        1150,
+        470
+      ],
+      "size": [
+        150,
+        88
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "大模型服务",
+      "sublabel": "DeepSeek / 通义 / GPT",
+      "tag": "可切换",
+      "pos": [
+        1360,
+        470
+      ],
+      "size": [
+        150,
+        84
+      ]
+    },
+    {
+      "id": "xiaoe",
+      "type": "external",
+      "label": "小鹅通 OpenAPI",
+      "sublabel": "考试 · 考卷 · 学员答卷",
+      "tag": "签名鉴权",
+      "pos": [
+        700,
+        70
+      ],
+      "size": [
+        160,
+        84
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "数据层 · 私有网络",
+      "wraps": [
+        "corpus",
+        "db",
+        "oss"
+      ],
+      "pad": 20
+    }
+  ],
+  "connections": [
+    {
+      "id": "wechat-web",
+      "from": "wechat",
+      "to": "web",
+      "label": "OAuth 2.0",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "teacher-web",
+      "from": "teacher",
+      "to": "web",
+      "label": "HTTPS",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "reviewer-copilot",
+      "from": "reviewer",
+      "to": "copilot",
+      "label": "复核",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "api",
+      "label": "REST",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "copilot-api",
+      "from": "copilot",
+      "to": "api",
+      "label": "SSE",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "api-rbac",
+      "from": "api",
+      "to": "rbac",
+      "label": "鉴权",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "api-orchestrator",
+      "from": "api",
+      "to": "orchestrator",
+      "label": "批次",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "api-corpus",
+      "from": "api",
+      "to": "corpus",
+      "label": "CRUD",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "orchestrator-queue",
+      "from": "orchestrator",
+      "to": "queue",
+      "label": "入队",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "queue-worker",
+      "from": "queue",
+      "to": "worker",
+      "label": "消费",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "route": "straight"
+    },
+    {
+      "id": "worker-ai",
+      "from": "worker",
+      "to": "ai",
+      "label": "批改",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "ai-llm",
+      "from": "ai",
+      "to": "llm",
+      "label": "HTTPS",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "orchestrator-db",
+      "from": "orchestrator",
+      "to": "db",
+      "label": "状态",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "corpus-db",
+      "from": "corpus",
+      "to": "db",
+      "label": "语料",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "worker-oss",
+      "from": "worker",
+      "to": "oss",
+      "label": "对象读写",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          1225,
+          420
+        ]
+      ],
+      "labelAt": [
+        1255,
+        430
+      ]
+    },
+    {
+      "id": "worker-db",
+      "from": "worker",
+      "to": "db",
+      "label": "判分",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "route": "orthogonal-h",
+      "via": [
+        [
+          1225,
+          420
+        ],
+        [
+          890,
+          420
+        ],
+        [
+          890,
+          518
+        ]
+      ]
+    },
+    {
+      "id": "xiaoe-orchestrator",
+      "from": "xiaoe",
+      "to": "orchestrator",
+      "label": "拉取",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "权限与页面可见性",
+      "items": [
+        "微信扫码登录，会话由 Elysia 统一校验",
+        "用户组 → 页面可见性 → 操作权限",
+        "管理员后台配置矩阵，前端按矩阵渲染路由"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "批改流水线",
+      "items": [
+        "小鹅通同步考试与考卷，按时间排序入库",
+        "按关键词 / 批改状态检索考试",
+        "评分要点 + 参考答案解析为 Markdown",
+        "批量判分后续写问题分析、总览与建议"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "审核闭环",
+      "items": [
+        "待审核考试分派多名审核员，答卷自动分配",
+        "判分与交付物分阶段，选中文本提 comment",
+        "多条 comment 合并或增量重生成，清零后交付"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "批改能力库",
+      "items": [
+        "提升建议、问题模板、评分要点等语料库",
+        "教研老师可增删改，按场景检索匹配",
+        "生成时引用语料，统一交付口径"
+      ]
+    }
+  ]
+}

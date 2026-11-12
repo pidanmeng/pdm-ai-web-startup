@@ -1,0 +1,45 @@
+{
+  "name": "xs-ai-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.2.19",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c cyan,magenta \"bun run dev:server\" \"bun run dev:web\"",
+    "dev:web": "bun run --filter @xs/web dev",
+    "dev:server": "bun run --filter @xs/server dev",
+    "build": "bun run build:server && bun run build:web",
+    "build:web": "bun run --filter @xs/web build",
+    "build:server": "bun run --filter @xs/server build",
+    "start": "concurrently -k -n server,web -c cyan,magenta \"bun run start:server\" \"bun run start:web\"",
+    "start:web": "bun run --filter @xs/web start",
+    "start:server": "bun run --filter @xs/server start",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter @xs/server test",
+    "test:watch": "bun run --filter @xs/server test:watch",
+    "lint": "bun run --filter @xs/web lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
+    "db:generate": "bun run --filter @xs/server db:generate",
+    "db:migrate": "bun run --filter @xs/server db:migrate",
+    "db:push": "bun run --filter @xs/server db:push",
+    "db:studio": "bun run --filter @xs/server db:studio",
+    "db:seed": "bun run --filter @xs/server db:seed",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "setup": "bun install && bun run setup:env",
+    "setup:env": "bun scripts/setup-env.ts",
+    "clean": "rm -rf .next apps/web/.next apps/server/dist node_modules apps/*/node_modules packages/*/node_modules",
+    "openapi": "open http://localhost:3101/openapi"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.19",
+    "concurrently": "^10.0.7",
+    "prettier": "^3.10.1",
+    "typescript": "5.9.3"
+  }
+}

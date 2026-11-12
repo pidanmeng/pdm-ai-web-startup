@@ -1,0 +1,339 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "AI 批改与审核闭环 · 业务流程",
+    "locale": "zh-CN",
+    "output": ".archify/workflow-ai-grading-20261112-145941/ai-grading-workflow.html",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "teacher",
+      "label": "教研老师"
+    },
+    {
+      "id": "reviewer",
+      "label": "审核员"
+    },
+    {
+      "id": "platform",
+      "label": "平台后端"
+    },
+    {
+      "id": "ai",
+      "label": "AI 批改"
+    }
+  ],
+  "phases": [
+    {
+      "id": "intake",
+      "label": "同步与解析",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "grading",
+      "label": "批量批改",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "review",
+      "label": "审核与交付",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "regen_group",
+      "label": "按 comment 重生成",
+      "lane": "ai",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    },
+    {
+      "id": "review_group",
+      "label": "两阶段审核",
+      "lane": "reviewer",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "mainPath": [
+    "p0",
+    "t1",
+    "t2",
+    "a1",
+    "p2",
+    "a2",
+    "a3",
+    "p3",
+    "r1",
+    "r2",
+    "p4"
+  ],
+  "nodes": [
+    {
+      "id": "p0",
+      "lane": "platform",
+      "col": 0,
+      "type": "cloud",
+      "label": "考试同步入库",
+      "sublabel": "考试列表 · 时间排序",
+      "tag": "定时 + 手动"
+    },
+    {
+      "id": "t1",
+      "lane": "teacher",
+      "col": 0,
+      "type": "frontend",
+      "label": "选择考试",
+      "sublabel": "关键词 / 批改状态"
+    },
+    {
+      "id": "t2",
+      "lane": "teacher",
+      "col": 1,
+      "type": "frontend",
+      "label": "上传评分要点",
+      "sublabel": "文件或表单"
+    },
+    {
+      "id": "a1",
+      "lane": "ai",
+      "col": 1,
+      "type": "backend",
+      "label": "解析入库",
+      "sublabel": "要点 + 考卷 → Markdown",
+      "tag": "结构化评分点"
+    },
+    {
+      "id": "p2",
+      "lane": "platform",
+      "col": 2,
+      "type": "backend",
+      "label": "批次编排",
+      "sublabel": "筛选未批改答卷",
+      "tag": "幂等 · 重试"
+    },
+    {
+      "id": "a2",
+      "lane": "ai",
+      "col": 2,
+      "type": "backend",
+      "label": "批量判分",
+      "sublabel": "逐题得分 + 依据",
+      "tag": "并发限流"
+    },
+    {
+      "id": "a3",
+      "lane": "ai",
+      "col": 3,
+      "type": "backend",
+      "label": "生成交付文本",
+      "sublabel": "分析 / 总览 / 建议",
+      "tag": "引用语料库"
+    },
+    {
+      "id": "p3",
+      "lane": "platform",
+      "col": 3,
+      "type": "backend",
+      "label": "分派审核",
+      "sublabel": "答卷 → 审核员",
+      "tag": "按题量均衡"
+    },
+    {
+      "id": "r1",
+      "lane": "reviewer",
+      "col": 4,
+      "type": "frontend",
+      "label": "判分审核",
+      "sublabel": "选中问题提 comment",
+      "tag": "多条合并"
+    },
+    {
+      "id": "a4",
+      "lane": "ai",
+      "col": 4,
+      "type": "backend",
+      "label": "判分重生成",
+      "sublabel": "只重跑命中片段",
+      "tag": "增量"
+    },
+    {
+      "id": "r2",
+      "lane": "reviewer",
+      "col": 5,
+      "type": "frontend",
+      "label": "交付物审核",
+      "sublabel": "选中文本提 comment",
+      "tag": "多条合并"
+    },
+    {
+      "id": "a5",
+      "lane": "ai",
+      "col": 5,
+      "type": "backend",
+      "label": "交付重生成",
+      "sublabel": "保留已通过内容",
+      "tag": "增量"
+    },
+    {
+      "id": "p4",
+      "lane": "teacher",
+      "col": 5,
+      "type": "frontend",
+      "label": "终审发布",
+      "sublabel": "回写小鹅通 / 导出",
+      "tag": "学生可见"
+    }
+  ],
+  "edges": [
+    {
+      "id": "sync-select",
+      "from": "p0",
+      "to": "t1",
+      "label": "同步完成",
+      "role": "main",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "select-upload",
+      "from": "t1",
+      "to": "t2",
+      "label": "选定考试",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "upload-parse",
+      "from": "t2",
+      "to": "a1",
+      "label": "提交要点",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "parse-batch",
+      "from": "a1",
+      "to": "p2",
+      "label": "解析完成",
+      "role": "main"
+    },
+    {
+      "id": "batch-grade",
+      "from": "p2",
+      "to": "a2",
+      "label": "未批改答卷",
+      "variant": "emphasis",
+      "role": "main",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "grade-generate",
+      "from": "a2",
+      "to": "a3",
+      "label": "判分结果",
+      "role": "main"
+    },
+    {
+      "id": "generate-assign",
+      "from": "a3",
+      "to": "p3",
+      "label": "生成完成",
+      "role": "main"
+    },
+    {
+      "id": "assign-review",
+      "from": "p3",
+      "to": "r1",
+      "label": "分派",
+      "role": "main"
+    },
+    {
+      "id": "review-pass",
+      "from": "r1",
+      "to": "r2",
+      "label": "判分通过",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "deliver-pass",
+      "from": "r2",
+      "to": "p4",
+      "label": "交付通过",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "comment-grade",
+      "from": "r1",
+      "to": "a4",
+      "label": "comment",
+      "variant": "dashed",
+      "role": "return"
+    },
+    {
+      "id": "regen-grade",
+      "from": "a4",
+      "to": "r1",
+      "label": "重审",
+      "variant": "dashed",
+      "role": "return"
+    },
+    {
+      "id": "comment-deliver",
+      "from": "r2",
+      "to": "a5",
+      "label": "comment",
+      "variant": "dashed",
+      "role": "return"
+    },
+    {
+      "id": "regen-deliver",
+      "from": "a5",
+      "to": "r2",
+      "variant": "dashed",
+      "role": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "建议状态机",
+      "items": [
+        "待解析 → 待批改 → 待审核 → 审核中 → 已交付",
+        "批处理只挑未批改答卷，失败可重试",
+        "状态由平台后端统一推进并对前端可检索"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "两阶段审核",
+      "items": [
+        "先判分、后交付物，各自 comment 清零才放行",
+        "多条 comment 合并提交，按命中片段增量重生成",
+        "已通过的内容保留，避免整卷重跑"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "批处理边界",
+      "items": [
+        "幂等键：考试 + 学员 + 题号",
+        "并发限流，失败重试不重复计分",
+        "生成文本引用语料库，统一交付口径"
+      ]
+    }
+  ]
+}
