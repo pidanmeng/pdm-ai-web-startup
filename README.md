@@ -375,4 +375,4 @@ psql -d xs_ai_platform -c "select goal, status, todo_count from demo_runs order 
 - CopilotKit 以最小 runtime 接入，未做租户级会话持久化。
 - SSE 事件已有 `todos` 结构，后续可替换为 AI SDK 的结构化输出 / 工具调用。
 - 归档记录支持回看，尚未支持删除、导出 PDF、任务执行状态回写。
-- 生产部署建议：Next.js 与 Elysia 分容器、共享日志 trace id、Postgres 连接池 + RLS、LLM 调用限流与成本观测。
+- 部署（过渡方案）：MVP 先用 **Vercel（web + api）+ 阿里云 RDS PostgreSQL 16 + OSS**，靠 Vercel CI/CD 快速上线；正式环境再迁境内（见 `.dsh/notes/baseline/04-platforms-and-deploy.md`）。终态仍是 Next.js 与 Elysia 分容器、共享日志 trace id、Postgres 连接池 + RLS、LLM 限流与成本观测。
