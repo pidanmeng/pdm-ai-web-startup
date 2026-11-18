@@ -150,10 +150,16 @@ function parseArgs(argv) {
   return { positional, flags }
 }
 
+// Windows 上不用 shell 执行：ssh/scp 的参数里常有管道、重定向、引号，
+// 交给 cmd 解释会被改坏。Node 直接 CreateProcess 时会按 PATHEXT 补 .exe。
+function nativeBin(cmd) {
+  if (process.platform !== 'win32') return cmd
+  return /\.(exe|cmd|bat)$/i.test(cmd) ? cmd : `${cmd}.exe`
+}
+
 function run(cmd, args, options = {}) {
-  const result = spawnSync(cmd, args, {
+  const result = spawnSync(nativeBin(cmd), args, {
     stdio: 'inherit',
-    shell: process.platform === 'win32' && !cmd.endsWith('.exe'),
     ...options,
   })
   if (result.error) fail(`执行失败：${cmd} ${args.join(' ')} — ${result.error.message}`)
@@ -161,7 +167,7 @@ function run(cmd, args, options = {}) {
 }
 
 function capture(cmd, args, options = {}) {
-  const result = spawnSync(cmd, args, {
+  const result = spawnSync(nativeBin(cmd), args, {
     encoding: 'utf8',
     ...options,
   })
