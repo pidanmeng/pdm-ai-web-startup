@@ -5,3 +5,6 @@ bun.lock
 .archify
 .tmp
 .bun
+
+# 内部工作笔记（基线文档 / CR / 功能需求），不参与产品代码的格式约束
+.dsh
