@@ -220,3 +220,22 @@ node scripts/ops.mjs db url          # 打印（打码后的）连接串
 - CI 日志里不要 `cat` 任何 `.env`；`ops.mjs` 输出默认打码（`sk-***`、`://user:***@`）。
 - 服务器 5432 与 3101 都不监听公网；安全组只放 22/80/443。
 - 换密钥后记得 `env sync`，并确认 `smoke` 的 `llm: configured` 为绿。
+
+---
+
+## 6. 作为 DSH Skill 安装（可选）
+
+Skill 目录就在仓库里。想让它出现在 DSH 的 skill 列表里，软链到 `~/.agents/skills/`：
+
+```powershell
+# Windows（需开发者模式或管理员）
+New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.agents\skills\deploy-ops" `
+  -Target "C:\Code\pdm-ai-web-startup\skills\deploy-ops"
+```
+
+```bash
+# macOS / Linux
+ln -s "$(pwd)/skills/deploy-ops" ~/.agents/skills/deploy-ops
+```
+
+`.env` 与 `.ssh/` 只在本机，不随仓库分发；换一台机器要重新放一把私钥（公钥进服务器 `authorized_keys`）并填 `.env`。
