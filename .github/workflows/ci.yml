@@ -1,0 +1,70 @@
+name: CI
+
+# 质量门禁：typecheck / test / lint / format / build。
+# 部署流水线（deploy.yml）会自己再构建一次，这里保证 PR 阶段就拦住问题。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.dsh/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: '1.2.19'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verify:
+    name: typecheck · test · lint · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # monorepo：依赖只在仓库根目录装一次
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Format check
+        run: bun run format:check
+
+      - name: Build API (bun bundle)
+        run: bun run build:server
+
+      - name: Build web (Next.js)
+        run: bun run build:web
+        env:
+          # 仅用于编译校验，CI 产物不会上线
+          NEXT_PUBLIC_API_URL: http://localhost:3101
+
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          test -f apps/web/.next/BUILD_ID || { echo "::error::apps/web/.next/BUILD_ID 缺失"; exit 1; }
+          test -f apps/server/dist/index.js || { echo "::error::apps/server/dist/index.js 缺失"; exit 1; }
+          echo "web BUILD_ID: $(cat apps/web/.next/BUILD_ID)"
+          echo "api dist   : $(du -sh apps/server/dist | cut -f1)"

@@ -1,0 +1,230 @@
+name: Deploy (Aliyun ECS)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 架构（本仓库的真实形态）：
+#   浏览器 → nginx :443 → Next.js :3001（SSR + BFF + CopilotKit）
+#            nginx :443/elysia/ → Elysia/Bun :3101（只监听 127.0.0.1）→ 本机 PostgreSQL 16
+#   · 构建全部在 GitHub Actions 完成（2G 内存的 ECS 扛不住 next build）
+#   · 只推一台服务器，没有 OSS / CDN / 第二个域名
+#
+# 它做的事：checkout → bun install → build → 打包 → scp 到 ECS → SSH 隧道跑迁移
+#           → 解包切换 release → pm2 startOrReload → 冒烟
+#
+# 它【不】做的事（一次性手工/脚本配置，CI 不碰）：
+#   · 安装 nginx / bun / PostgreSQL，写 nginx 站点，申请证书  → skills/deploy-ops 的 bootstrap
+#   · 写 apps/*/.env（CI 只检查存在，不写内容）              → skills/deploy-ops 的 env sync
+#   · pm2 开机自启注册                                       → bootstrap 里做一次
+#
+# 需要的 Secrets（Settings → Secrets and variables → Actions）：
+#   DEPLOY_HOST       8.140.27.125
+#   DEPLOY_USER       root
+#   DEPLOY_SSH_KEY    部署私钥全文（含 BEGIN/END 两行）
+#   DEPLOY_SSH_KEY_B64（可选）同一把私钥的 base64，优先于上面那个（无换行，最稳）
+#
+# 需要的 Variables（可选）：PUBLIC_ORIGIN / DOMAIN / APP_DIR 等在下方 env 里已有默认值，
+# 换域名时改这里 + 服务器 nginx 站点（bootstrap --domain）即可。
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches: [main]
+    # 只改文档就不部署，省 Actions 分钟数
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.dsh/**'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'deploy=发布当前 main；rollback=回滚'
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+        required: true
+      sha:
+        description: 'rollback 目标 sha（留空 = 上一个 release）'
+        required: false
+
+# 同一时刻只跑一个部署，避免两次解包互相覆盖
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: '1.2.19'
+  NEXT_TELEMETRY_DISABLED: '1'
+  APP_DIR: /var/www/pdm-ai-web-startup
+  DOMAIN: ai.koiism.cn
+  PUBLIC_ORIGIN: https://ai.koiism.cn
+  WEB_PORT: '3001'
+  API_PORT: '3101'
+  PM2_WEB: pdm-web
+  PM2_API: pdm-api
+
+jobs:
+  deploy:
+    name: build · ship · release
+    if: github.event_name == 'push' || inputs.mode == 'deploy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # 配了 production environment 的话，这里可以加人工审批
+    # environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Configure SSH
+        env:
+          SSH_KEY_B64: ${{ secrets.DEPLOY_SSH_KEY_B64 }}
+          SSH_KEY_RAW: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          umask 077
+          key="$RUNNER_TEMP/deploy_key"
+
+          # base64 优先：没有换行，不会被复制粘贴的 CRLF 或折行破坏
+          if [ -n "${SSH_KEY_B64:-}" ]; then
+            printf '%s' "$SSH_KEY_B64" | base64 -d > "$key"
+            echo "私钥来源: DEPLOY_SSH_KEY_B64"
+          else
+            printf '%s\n' "${SSH_KEY_RAW:-}" \
+              | tr -d '\r' \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              | sed '/^$/d' > "$key"
+            echo "私钥来源: DEPLOY_SSH_KEY"
+          fi
+          chmod 600 "$key"
+
+          # 本地先校验，避免远端报模糊的 "error in libcrypto"
+          if ! ssh-keygen -y -P '' -f "$key" > /dev/null 2>&1; then
+            echo "::error::DEPLOY_SSH_KEY 不是有效私钥（粘成 .pub 公钥／漏了 BEGIN END／私钥带口令都会这样）"
+            exit 1
+          fi
+          echo "私钥指纹: $(ssh-keygen -lf "$key" | awk '{print $2}')"
+          echo "SSH_KEY_PATH=$key" >> "$GITHUB_ENV"
+
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # 前置检查：服务器上的 env 必须已就绪。这里挡的是最贵的事故——
+      # 迁移连到空库、上线后 AI 功能静默不可用。
+      - name: Preflight (remote env files)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i "$SSH_KEY_PATH" -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" bash -s <<REMOTE
+          set -euo pipefail
+          fail=0
+          for f in "$APP_DIR/shared/server.env" "$APP_DIR/shared/web.env.local"; do
+            if [ ! -s "\$f" ]; then
+              echo "MISS \$f"; fail=1
+            fi
+          done
+          if [ -s "$APP_DIR/shared/server.env" ]; then
+            grep -q '^DATABASE_URL=postgres' "$APP_DIR/shared/server.env" || { echo "BAD DATABASE_URL"; fail=1; }
+            grep -q '^LLM_API_KEY=sk-' "$APP_DIR/shared/server.env" || { echo "BAD LLM_API_KEY"; fail=1; }
+          fi
+          if [ "\$fail" = "1" ]; then
+            echo "::error::服务器 env 未就绪。在本地执行：node skills/deploy-ops/scripts/ops.mjs env sync"
+            exit 1
+          fi
+          echo "OK  服务器 env 就绪"
+          REMOTE
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: |
+          set -euo pipefail
+          bun run build:server
+          bun run build:web
+        env:
+          NEXT_PUBLIC_API_URL: ${{ env.PUBLIC_ORIGIN }}/elysia
+
+      # 打包 / 上传 / 迁移（SSH 隧道）/ 切换 release / 冒烟，全部走同一个 CLI，
+      # 与本地运维（skills/deploy-ops）是同一套实现。
+      - name: Deploy to ECS
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: node skills/deploy-ops/scripts/ops.mjs deploy --skip-build
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deploy summary"
+            echo ""
+            echo "- origin: \`$PUBLIC_ORIGIN\`"
+            echo "- commit: \`$GITHUB_SHA\`"
+            echo "- app dir: \`$APP_DIR\`"
+            echo "- ports: web \`$WEB_PORT\` / api \`$API_PORT\`"
+            echo ""
+            echo "回滚：Actions → 本工作流 → Run workflow → mode=rollback"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  rollback:
+    name: rollback
+    if: inputs.mode == 'rollback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Configure SSH
+        env:
+          SSH_KEY_B64: ${{ secrets.DEPLOY_SSH_KEY_B64 }}
+          SSH_KEY_RAW: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          umask 077
+          key="$RUNNER_TEMP/deploy_key"
+          if [ -n "${SSH_KEY_B64:-}" ]; then
+            printf '%s' "$SSH_KEY_B64" | base64 -d > "$key"
+          else
+            printf '%s\n' "${SSH_KEY_RAW:-}" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed '/^$/d' > "$key"
+          fi
+          chmod 600 "$key"
+          ssh-keygen -y -P '' -f "$key" > /dev/null
+          echo "SSH_KEY_PATH=$key" >> "$GITHUB_ENV"
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Rollback
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          TARGET_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TARGET_SHA:-}" ]; then
+            node skills/deploy-ops/scripts/ops.mjs rollback --sha "$TARGET_SHA"
+          else
+            node skills/deploy-ops/scripts/ops.mjs rollback
+          fi
+
+      - name: Smoke (public)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: node skills/deploy-ops/scripts/ops.mjs smoke --no-stream

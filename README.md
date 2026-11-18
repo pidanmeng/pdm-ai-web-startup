@@ -1,359 +1,143 @@
-# XS 遴选 · AI SaaS 中台
+# PDM AI Web Startup
 
-面向公务员遴选教培的 AI SaaS 中台原型。第一个业务闭环：用户输入一个备考目标，AI 教研员通过 **SSE 逐字流式**拆解为 6–8 条可执行、可验收的任务，并自动归档到 PostgreSQL。
+面向「公务员遴选教培」场景的 **AI Web 项目启动模板**：Bun monorepo + Next.js 15（App Router / BFF）+ Elysia 1.4 + Drizzle + PostgreSQL + AI SDK 5 + CopilotKit。
 
-> 技术栈：Bun workspace · Next.js 15（App Router）· Elysia 1.4 · Drizzle ORM · PostgreSQL · OpenAPI · Eden Treaty · AI SDK 5 · Tailwind CSS 4 · shadcn/ui · Zustand · CopilotKit
+开箱包含一条完整的业务纵切（输入备考目标 → AI **SSE 逐字流式**拆解为可执行任务清单 → 自动归档），以及一套**真正跑在生产上**的交付链路：GitHub Actions 构建、阿里云 ECS 发布、pm2 守护、nginx + Let's Encrypt、`deploy-ops` 运维 Skill（部署 / 回滚 / 日志 / `.env` 同步）。
 
-## 预览
-
-![首页](docs/preview-home.png)
-
-![AI 工作台](docs/preview-workbench.png)
+> 现网参考部署：**https://ai.koiism.cn**（阿里云 ECS 8.140.27.125，北京，2C2G，Alibaba Cloud Linux 3）
 
 ---
 
-## 1. 快速开始
+## 1. 它解决什么问题
 
-### 环境要求
+新起一个 AI Web 项目时，重复劳动集中在三处：前后端分离的类型契约、流式 AI 的用户体验、以及上线运维。这个模板把三件事都钉死：
 
-- [Bun](https://bun.sh) `>= 1.2`
-- Node.js `>= 20`（Next.js 使用）
-- PostgreSQL `>= 15`，或 Docker
-
-### 1）安装依赖
-
-```bash
-bun install
-```
-
-### 2）准备环境变量
-
-```bash
-bun run setup:env
-```
-
-会生成：
-
-- `apps/server/.env`
-- `apps/web/.env.local`
-
-然后填写 `LLM_API_KEY`。默认使用 DeepSeek 的 OpenAI 兼容接口：
-
-```dotenv
-LLM_BASE_URL=https://api.deepseek.com/v1
-LLM_API_KEY=sk-...
-LLM_MODEL=deepseek-flash
-```
-
-> LLM 密钥仅存在于服务端。浏览器只访问 Next.js 的同源 `/api/demo`，由 Next.js 路由转发到 Elysia。
-
-### 3）启动数据库
-
-使用本机 PostgreSQL：
-
-```bash
-createdb xs_ai_platform
-```
-
-或使用 Docker：
-
-```bash
-bun run db:up
-```
-
-默认连接串（`apps/server/.env`）：
-
-```dotenv
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/xs_ai_platform
-```
-
-本机没有密码的 Postgres 可以改成：
-
-```dotenv
-DATABASE_URL=postgresql://<你的用户名>@localhost:5432/xs_ai_platform
-```
-
-### 4）执行迁移
-
-```bash
-bun run db:migrate
-```
-
-可选：插入一条示例归档，方便先看 UI。
-
-```bash
-bun run db:seed
-```
-
-### 5）启动开发环境
-
-```bash
-bun run dev
-```
-
-| 服务                 | 地址                                       |
-| -------------------- | ------------------------------------------ |
-| Web / Demo 页面      | http://localhost:3000/demo                 |
-| 兼容别名             | http://localhost:3000/pages/demo → `/demo` |
-| Next.js 同源流式入口 | `POST http://localhost:3000/api/demo`      |
-| Elysia API           | http://localhost:3101                      |
-| Health               | http://localhost:3101/api/health           |
-| OpenAPI UI           | http://localhost:3101/openapi              |
-
-> 本仓库后端默认端口为 **3101**（避免与本机已有的 3001 服务冲突）。可在 `apps/server/.env` 的 `PORT`、`apps/web/.env.local` 的 `NEXT_PUBLIC_API_URL` 中同步修改。
+| 关注点   | 模板给的做法                                                                                       |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| 类型契约 | Elysia `t` 模型是唯一声明来源；`App` 类型经 Eden Treaty 传到前端，零手写 DTO                       |
+| 流式体验 | 服务端 SSE（`meta/delta/todos/done/error`）+ Next 同源 BFF 转发，不缓冲字节                        |
+| 上线运维 | GitHub Actions 构建 → scp 发布包 → SSH 隧道迁移 → pm2 平滑重载 → 冒烟；本地用同一个 CLI 复现       |
+| 配置安全 | 敏感值只在 `skills/deploy-ops/.env`（已 gitignore）与服务器 `shared/*.env`，不进仓库、不进 CI 日志 |
 
 ---
 
-## 2. Demo 使用说明
+## 2. 技术栈
 
-1. 在首页输入备考目标，例如：
-   > 三个月内通过省直机关遴选笔试，行测基础一般，公文写作是短板，每天能投入 2 小时。
-2. 点击「开始拆解」或按 `⌘/Ctrl + Enter`。
-3. 左侧面板通过 SSE 逐字展示 AI 输出；右侧清单会随着 `todos` 事件实时补全。
-4. 勾选任务可本地推进进度；「复制清单」导出 Markdown。
-5. 生成完成后自动写入 `demo_runs` / `demo_todos`，在「归档记录」中可以重新打开。
-6. 右下角的 CopilotKit 助手可以结合当前目标与任务清单继续追问。
+| 层              | 选型                                                                         |
+| --------------- | ---------------------------------------------------------------------------- |
+| 运行时 / 包管理 | Bun 1.2（workspace + `bun.lock`）                                            |
+| Web             | Next.js 15.5（App Router、RSC、Tailwind CSS 4、shadcn/ui 风格组件、Zustand） |
+| API             | Elysia 1.4（TypeBox 校验、OpenAPI、CORS）                                    |
+| 数据            | PostgreSQL 16/17 + Drizzle ORM（`bun:sql` 原生驱动，无 `pg` 依赖）           |
+| AI              | AI SDK 5（`streamText`）+ OpenAI 兼容网关（默认 DeepSeek）+ CopilotKit 1.50  |
+| 部署            | pm2 + nginx + Let's Encrypt；GitHub Actions 做构建与发布                     |
 
 ---
 
-## 3. 目录结构
+## 3. 架构
+
+```mermaid
+flowchart LR
+  B["浏览器 / 移动端"] -->|HTTPS 443| N["nginx<br/>ai.koiism.cn"]
+  N -->|"/"| W["Next.js :3001<br/>SSR + BFF + CopilotKit"]
+  N -->|"/elysia/*"| E["Elysia :3101<br/>only 127.0.0.1"]
+  W -->|"POST /api/demo（SSE 透传）"| E
+  E -->|"AI SDK streamText"| L["DeepSeek / OpenAI 兼容"]
+  E --> P[("PostgreSQL<br/>127.0.0.1:5432")]
+```
+
+同源设计的两点取舍：
+
+- **浏览器只认一个域名**。业务流式走 `/api/demo`（Next 路由转发，不暴露 Elysia 地址）；Eden Treaty 的基址是 `/elysia`，由 nginx 反代到 `:3101`。
+- **API 不监听公网**。Elysia 绑 `127.0.0.1:3101`，5432 同理；公网只有 nginx 的 80/443。
+
+---
+
+## 4. 目录结构
 
 ```
 .
 ├── apps
-│   ├── server                       # Elysia API（Bun）
-│   │   ├── drizzle/                 # 生成的 SQL migrations
+│   ├── server                     # Elysia API（Bun）
+│   │   ├── drizzle/               # 生成的 SQL 迁移 + meta
 │   │   ├── src
-│   │   │   ├── app.ts               # 组装 app / CORS / OpenAPI / 错误处理
-│   │   │   ├── index.ts             # 监听入口，导出 App 类型给 Eden
-│   │   │   ├── env.ts
-│   │   │   ├── db
-│   │   │   │   ├── index.ts         # Bun.sql + Drizzle
-│   │   │   │   ├── schema.ts        # demo_runs / demo_todos
-│   │   │   │   ├── demo-repository.ts
-│   │   │   │   └── seed.ts
-│   │   │   ├── lib/llm.ts           # OpenAI-compatible provider
-│   │   │   └── modules
-│   │   │       ├── demo
-│   │   │       │   ├── index.ts     # Controller（Elysia instance）
-│   │   │       │   ├── service.ts   # SSE 流 / 编排 / 错误处理
-│   │   │       │   ├── model.ts     # Elysia t 模型 + 类型
-│   │   │       │   └── prompt.ts
-│   │   │       └── health
+│   │   │   ├── app.ts             # 组装 CORS / OpenAPI / 错误处理
+│   │   │   ├── index.ts           # 监听入口，导出 App 类型给 Eden
+│   │   │   ├── env.ts             # 环境变量收敛点
+│   │   │   ├── db/                # Bun.sql + Drizzle + schema + repository
+│   │   │   ├── lib/llm.ts         # OpenAI 兼容 provider
+│   │   │   └── modules/demo       # controller / service / model / prompt
 │   │   └── tests
-│   └── web                          # Next.js 15 App Router
-│       ├── src
-│       │   ├── app
-│       │   │   ├── api/demo         # 同源 SSE 转发（BFF）
-│       │   │   ├── api/copilotkit   # CopilotKit runtime
-│       │   │   ├── demo/page.tsx    # 目标页面 /demo
-│       │   │   └── pages/demo       # 字面路径兼容，重定向到 /demo
-│       │   ├── components
-│       │   │   ├── demo             # Hero / 工作台 / 清单 / 归档 / Copilot
-│       │   │   └── ui               # shadcn/ui 组件
-│       │   ├── lib                  # API 客户端、SSE hook
-│       │   └── store                # Zustand store
-│       └── .env.local
-├── packages/shared                  # 前后端共享类型 + TODO 解析器
-├── scripts/setup-env.ts
-├── docker-compose.yml
-└── package.json                     # 所有根脚本
+│   └── web                        # Next.js 15 App Router
+│       └── src
+│           ├── app/api/demo       # 同源 SSE 转发（BFF）
+│           ├── app/api/copilotkit # CopilotKit runtime
+│           ├── components/demo    # Hero / 工作台 / 清单 / 归档 / Copilot
+│           ├── lib                # Eden 客户端、SSE hook
+│           └── store              # Zustand
+├── packages/shared                # 前后端共享类型 + Task 解析器
+├── deploy/ecosystem.config.cjs    # pm2 进程定义（pdm-web / pdm-api）
+├── skills/deploy-ops              # 部署·运维·.env 同步 Skill（见第 10 节）
+├── .github/workflows              # ci.yml + deploy.yml
+├── docker-compose.yml             # 本地 PostgreSQL
+└── scripts/setup-env.ts           # 首次生成 .env
 ```
 
-服务端遵循 Elysia 官方推荐的 **feature-based MVC**：
+服务端遵循 Elysia 官方推荐的 feature-based MVC：
 
-| 文件                      | 职责                                                               |
-| ------------------------- | ------------------------------------------------------------------ |
-| `modules/demo/index.ts`   | Controller：路由、参数校验、HTTP 状态码、SSE Response              |
-| `modules/demo/service.ts` | Service：LLM 编排、流式转发、解析、归档；不接触 Elysia Context     |
-| `modules/demo/model.ts`   | Model：单一声明来源（TypeBox / `t`），同时产出运行时校验与 TS 类型 |
-| `modules/demo/prompt.ts`  | Prompt 资产                                                        |
-| `db/demo-repository.ts`   | 持久化边界，独立于 HTTP 层                                         |
+| 文件                      | 职责                                                       |
+| ------------------------- | ---------------------------------------------------------- |
+| `modules/demo/index.ts`   | Controller：路由、校验、HTTP 状态码、SSE Response          |
+| `modules/demo/service.ts` | Service：LLM 编排、流式、解析、归档；不接触 Elysia Context |
+| `modules/demo/model.ts`   | Model：TypeBox `t` 单一来源，运行时校验 + TS 类型          |
+| `modules/demo/prompt.ts`  | Prompt 资产                                                |
+| `db/demo-repository.ts`   | 持久化边界，独立于 HTTP 层                                 |
 
 ---
 
-## 4. 接口
+## 5. 快速开始（本地）
 
-### `POST /api/demo`
+环境要求：Bun ≥ 1.2、Node ≥ 20（Next 用）、PostgreSQL ≥ 15 或 Docker。
 
-请求：
+```bash
+bun install              # 1) 装依赖（monorepo 在根目录装一次）
+bun run setup:env        # 2) 生成 apps/server/.env 与 apps/web/.env.local
+bun run db:up            # 3) 起本地 PostgreSQL（或用自己的实例）
+bun run db:migrate       # 4) 建表
+bun run db:seed          # 5)（可选）插一条示例归档
+bun run dev              # 6) 并行起 web + api
+```
+
+`.env` 里至少填 `LLM_API_KEY`，否则 `POST /api/demo` 会返回 503（健康检查显示 `llm: missing-key`）。
+
+| 入口          | 地址                                  |
+| ------------- | ------------------------------------- |
+| 首页 / 工作台 | http://localhost:3000                 |
+| 演示页        | http://localhost:3000/demo            |
+| 同源流式入口  | `POST http://localhost:3000/api/demo` |
+| Elysia API    | http://localhost:3101                 |
+| 健康检查      | http://localhost:3101/api/health      |
+| OpenAPI UI    | http://localhost:3101/openapi         |
+
+> 后端默认 **3101**（避开常见的 3001 冲突）；生产上 web 用 3001、api 用 3101，改端口见 `skills/deploy-ops/.env`。
+
+---
+
+## 6. 接口
+
+### `POST /api/demo` → `text/event-stream`
 
 ```json
-{ "goal": "三个月通过省直机关遴选笔试" }
+{ "goal": "三个月内通过省直机关遴选笔试" }
 ```
 
-响应：`Content-Type: text/event-stream`
-
-事件序列：
-
-| event   | data                                       |
-| ------- | ------------------------------------------ |
-| `meta`  | `{ runId, model, startedAt }`              |
-| `delta` | `{ text }` — 逐字增量                      |
-| `todos` | `{ todos: TodoItem[] }` — 解析出的最新清单 |
-| `done`  | `{ runId, todos, latencyMs, persisted }`   |
-| `error` | `{ message, runId? }`                      |
-
-示例：
-
-```bash
-curl -N -X POST http://localhost:3101/api/demo \
-  -H 'Content-Type: application/json' \
-  -d '{"goal":"三个月通过省直机关遴选笔试"}'
-```
-
-### `GET /api/demo/runs`
-
-最近 8 条归档记录。数据库不可用时优雅降级为 `[]`。
-
-### `GET /api/demo/runs/:id`
-
-单条记录与完整任务清单。
-
-### `GET /api/health`
-
-返回 API / PostgreSQL / LLM 配置状态。
-
-OpenAPI 文档：<http://localhost:3101/openapi>（JSON 在 `/openapi/json`）。
-
----
-
-## 5. 架构与数据流
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant B as Browser
-    participant W as Next.js BFF<br/>/api/demo
-    participant E as Elysia<br/>POST /api/demo
-    participant S as DemoService
-    participant L as DeepSeek (AI SDK)
-    participant D as PostgreSQL
-
-    B->>W: POST { goal }
-    W->>E: proxy SSE request
-    E->>E: validate with Elysia t model
-    E->>S: stream(goal, request.signal)
-    S-->>B: event: meta
-    S->>L: streamText(...)
-    loop textStream
-        L-->>S: delta
-        S-->>B: event: delta
-        S-->>B: event: todos（清单条数变化时）
-    end
-    S->>D: insert demo_runs + demo_todos
-    S-->>B: event: done
-    B->>W: GET history (Eden Treaty → Elysia)
-```
-
-关键设计：
-
-- **BFF 同源转发**：浏览器始终请求 `/api/demo`，不会暴露 Elysia 地址；转发不缓冲字节。
-- **流式协议自描述**：SSE 事件同时携带结构和文本，前端既能展示推理过程，也能实时生成结构化清单。
-- **解析器前后端共享**：`packages/shared` 中的 `parseTodos` 被服务端和前端共同使用，格式容错一致。
-- **数据库 best-effort**：Postgres 掉线时生成仍然可用，`done.persisted` 为 `false`，UI 会提示「未归档」。
-- **中止与清理**：客户端 `AbortController` → Next.js 转发 signal → Elysia `request.signal` → AI SDK `abortSignal`；中断的 run 记为 `failed`。
-- **Eden 端到端类型**：`packages/server` 导出 `App` 类型，前端 `treaty<App>(API_URL)` 推断出 `/api/demo/runs` 的响应，无需手写 DTO。
-
----
-
-## 6. 根目录脚本
-
-| 脚本                              | 说明                                  |
-| --------------------------------- | ------------------------------------- |
-| `bun run dev`                     | 并行启动 web + server（concurrently） |
-| `bun run dev:web`                 | 仅启动 Next.js（3000）                |
-| `bun run dev:server`              | 仅启动 Elysia（3101，hot reload）     |
-| `bun run build`                   | 依次构建 server + web                 |
-| `bun run build:web`               | `next build`                          |
-| `bun run build:server`            | `bun build` → `apps/server/dist`      |
-| `bun run start`                   | 生产模式并行启动                      |
-| `bun run start:web`               | `next start`                          |
-| `bun run start:server`            | 运行构建产物                          |
-| `bun run typecheck`               | 所有 workspace 的 `tsc --noEmit`      |
-| `bun run test`                    | 服务端 Bun 测试                       |
-| `bun run test:watch`              | 测试 watch 模式                       |
-| `bun run lint`                    | Next.js ESLint                        |
-| `bun run format` / `format:check` | Prettier                              |
-| `bun run db:generate`             | 根据 schema 生成 SQL migration        |
-| `bun run db:migrate`              | 执行 migration                        |
-| `bun run db:push`                 | 开发期直接同步 schema                 |
-| `bun run db:studio`               | Drizzle Studio                        |
-| `bun run db:seed`                 | 插入示例归档                          |
-| `bun run db:up` / `db:down`       | Docker Compose 启停 PostgreSQL        |
-| `bun run setup`                   | 安装依赖 + 首次生成 env 文件          |
-| `bun run openapi`                 | 在浏览器打开 OpenAPI UI               |
-| `bun run clean`                   | 删除构建产物与 node_modules           |
-
----
-
-## 7. 环境变量
-
-### `apps/server/.env`
-
-| 变量           | 默认值                        | 说明               |
-| -------------- | ----------------------------- | ------------------ |
-| `PORT`         | `3101`                        | Elysia 端口        |
-| `HOST`         | `0.0.0.0`                     | 监听地址           |
-| `CORS_ORIGIN`  | `http://localhost:3000,...`   | 逗号分隔的允许来源 |
-| `DATABASE_URL` | 本地 Postgres                 | Drizzle / Bun.sql  |
-| `LLM_BASE_URL` | `https://api.deepseek.com/v1` | OpenAI 兼容网关    |
-| `LLM_API_KEY`  | —                             | 必填，仅服务端     |
-| `LLM_MODEL`    | `deepseek-flash`              | 模型 id            |
-
-### `apps/web/.env.local`
-
-| 变量                                         | 说明                                                         |
-| -------------------------------------------- | ------------------------------------------------------------ |
-| `NEXT_PUBLIC_API_URL`                        | Eden / 文档链接使用的 API 源（默认 `http://localhost:3101`） |
-| `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | 仅供 `/api/copilotkit` runtime 使用                          |
-| `API_INTERNAL_URL`（可选）                   | Next.js BFF 转发目标，默认复用 `NEXT_PUBLIC_API_URL`         |
-
----
-
-## 8. 数据库
-
-```sql
-demo_runs
-  id uuid pk
-  goal text
-  model varchar(80)
-  status demo_run_status  -- streaming | completed | failed
-  raw_output text
-  todo_count int
-  latency_ms int
-  error text
-  created_at timestamptz
-  completed_at timestamptz
-
-demo_todos
-  id uuid pk
-  run_id uuid fk → demo_runs.id (cascade)
-  title text
-  detail text
-  priority varchar(16)   -- high | medium | low
-  position int
-  created_at timestamptz
-```
-
-修改 `apps/server/src/db/schema.ts` 后：
-
-```bash
-bun run db:generate
-bun run db:migrate
-```
-
----
-
-## 9. 测试与验证
-
-```bash
-bun run test
-bun run typecheck
-bun run build
-```
-
-手动验证流式接口：
+| event   | data                                         |
+| ------- | -------------------------------------------- |
+| `meta`  | `{ runId, model, startedAt }`                |
+| `delta` | `{ text }` — 逐字增量                        |
+| `todos` | `{ todos: TodoItem[] }` — 清单条数变化时推送 |
+| `done`  | `{ runId, todos, latencyMs, persisted }`     |
+| `error` | `{ message, runId? }`                        |
 
 ```bash
 curl -N -X POST http://localhost:3101/api/demo \
@@ -361,18 +145,163 @@ curl -N -X POST http://localhost:3101/api/demo \
   -d '{"goal":"30 天补齐公文写作短板"}'
 ```
 
-应看到 `meta → delta… → todos… → done`，且：
+### 其它
 
-```bash
-psql -d xs_ai_platform -c "select goal, status, todo_count from demo_runs order by created_at desc limit 3;"
-```
+| 方法  | 路径                 | 说明                                         |
+| ----- | -------------------- | -------------------------------------------- |
+| `GET` | `/api/health`        | `status / database / llm / model / uptimeMs` |
+| `GET` | `/api/demo/runs`     | 最近 8 条归档（库挂了优雅降级为 `[]`）       |
+| `GET` | `/api/demo/runs/:id` | 单条记录 + 完整清单                          |
+| `GET` | `/openapi`           | OpenAPI UI（JSON 在 `/openapi/json`）        |
+
+关键实现细节：BFF 透传不缓冲、`parseTodos` 前后端共用、数据库 best-effort（掉线仍可生成，`done.persisted=false`）、客户端 `AbortController` 一路传到 AI SDK 的 `abortSignal`，中断的 run 落库为 `failed`。
 
 ---
 
-## 10. 已知边界与下一步
+## 7. 环境变量
 
-- 当前是单租户 Demo：未接入登录、组织/学员、RBAC 与配额。
-- CopilotKit 以最小 runtime 接入，未做租户级会话持久化。
-- SSE 事件已有 `todos` 结构，后续可替换为 AI SDK 的结构化输出 / 工具调用。
-- 归档记录支持回看，尚未支持删除、导出 PDF、任务执行状态回写。
-- 部署（过渡方案）：MVP 先用 **Vercel（web + api）+ 阿里云 RDS PostgreSQL 16 + OSS**，靠 Vercel CI/CD 快速上线；正式环境再迁境内（见 `.dsh/notes/baseline/04-platforms-and-deploy.md`）。终态仍是 Next.js 与 Elysia 分容器、共享日志 trace id、Postgres 连接池 + RLS、LLM 限流与成本观测。
+本地：`apps/server/.env`、`apps/web/.env.local`（由 `bun run setup:env` 生成）。
+
+生产：**不在 CI 里配**。它们由 `skills/deploy-ops` 从 `.env` 渲染到服务器的 `shared/server.env` 与 `shared/web.env.local`，再软链进 release。
+
+| 变量                         | 位置         | 说明                                             |
+| ---------------------------- | ------------ | ------------------------------------------------ |
+| `PORT` / `HOST`              | server       | 生产固定 `3101` / `127.0.0.1`                    |
+| `CORS_ORIGIN`                | server       | 逗号分隔允许来源                                 |
+| `DATABASE_URL`               | server       | PostgreSQL 连接串（生产指向 `127.0.0.1:5432`）   |
+| `LLM_BASE_URL` / `LLM_MODEL` | server + web | OpenAI 兼容网关 / 模型 id                        |
+| `LLM_API_KEY`                | server + web | 只存在于服务端；浏览器不接触                     |
+| `NEXT_PUBLIC_API_URL`        | web          | **build 期内联**，生产为 `https://<域名>/elysia` |
+| `API_INTERNAL_URL`           | web          | BFF 转发目标，`http://127.0.0.1:3101`            |
+
+> `NEXT_PUBLIC_*` 会被打进客户端包：**换域名必须重新构建**（CI 每次构建都会用当前 `PUBLIC_ORIGIN` 覆盖）。
+
+---
+
+## 8. 根目录脚本
+
+| 脚本                                                                       | 说明                           |
+| -------------------------------------------------------------------------- | ------------------------------ |
+| `bun run dev` / `dev:web` / `dev:server`                                   | 并行 / 单独启动                |
+| `bun run build` / `build:web` / `build:server`                             | 构建（CI 只用这两条）          |
+| `bun run start` / `start:web` / `start:server`                             | 生产模式启动                   |
+| `bun run typecheck`                                                        | 全 workspace `tsc --noEmit`    |
+| `bun run test` / `test:watch`                                              | 服务端 Bun 测试                |
+| `bun run lint`                                                             | Next ESLint                    |
+| `bun run format` / `format:check`                                          | Prettier                       |
+| `bun run db:generate` / `db:migrate` / `db:push` / `db:studio` / `db:seed` | Drizzle 工具链                 |
+| `bun run db:up` / `db:down`                                                | Docker Compose 启停 PostgreSQL |
+| `bun run setup` / `setup:env`                                              | 装依赖 + 生成 env 文件         |
+| `bun run clean` / `openapi`                                                | 清理产物 / 打开 OpenAPI        |
+
+---
+
+## 9. CI / CD：GitHub → 阿里云 ECS
+
+两个工作流，职责分开：
+
+| 工作流                         | 触发                          | 内容                                                      |
+| ------------------------------ | ----------------------------- | --------------------------------------------------------- |
+| `.github/workflows/ci.yml`     | PR、push main                 | typecheck → test → lint → format → build → 产物自检       |
+| `.github/workflows/deploy.yml` | push main（忽略纯文档）、手动 | 构建 → 打包 → scp → 迁移 → 切换 release → pm2 重载 → 冒烟 |
+
+### 发布链路
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Dev as git push main
+  participant CI as GitHub Actions
+  participant ECS as ECS /var/www/pdm-ai-web-startup
+  participant PM2 as pm2 (pdm-web, pdm-api)
+  participant PG as PostgreSQL
+
+  Dev->>CI: push
+  CI->>CI: bun install --frozen-lockfile / build
+  CI->>ECS: scp releases/<sha>.tgz
+  CI->>PG: SSH 隧道 15432 -> 127.0.0.1:5432，drizzle-kit migrate
+  CI->>ECS: bash release.sh <sha>
+  ECS->>ECS: 展开代码（保留 node_modules）+ 软链 shared/*.env
+  ECS->>ECS: bun install --production
+  ECS->>PM2: pm2 startOrReload（平滑）
+  PM2->>PG: 新版本连接
+  ECS-->>CI: 本机健康检查（api / web）
+  CI->>ECS: 公网 HTTPS 冒烟
+```
+
+设计要点：
+
+- **构建只在 CI 做**。2C2G 的 ECS 跑 `next build` 会被 OOM killer 干掉（控制台也会提示内存风险）；服务器只做「装运行时依赖 + 起进程」。
+- **迁移走 SSH 隧道**，不把 5432 暴露到公网，也不需要 `drizzle-kit` 装到服务器上。
+- **release 目录化 + 只保留最近 5 个包**：回滚就是「换一个 tarball 再切一次」，40G 盘不会被历史包吃满。
+- **`.env` 不进发布包**：tarball 里没有 `apps/*/.env*`，服务器靠 `shared/` 软链，重建 release 不会丢配置。
+
+### 需要配置的 Secrets（仓库 Settings → Secrets and variables → Actions）
+
+| 名称                 | 必填               | 说明                                                          |
+| -------------------- | ------------------ | ------------------------------------------------------------- |
+| `DEPLOY_HOST`        | ✅                 | `8.140.27.125`                                                |
+| `DEPLOY_USER`        | ✅                 | `root`                                                        |
+| `DEPLOY_SSH_KEY_B64` | ✅（二选一，优先） | 私钥的 base64（`base64 -w0 < id_ed25519`），无换行、不怕 CRLF |
+| `DEPLOY_SSH_KEY`     | ✅（二选一）       | 私钥全文（含 `BEGIN/END`），仅在没配 B64 时使用               |
+
+数据库密码与 LLM Key **不需要**进 GitHub：迁移时 CI 从服务器 `shared/server.env` 读取，经隧道使用。
+
+### 首次上线（一次性）
+
+```bash
+cd skills/deploy-ops
+cp .env.example .env          # 填 DEPLOY_HOST / DB_PASSWORD / DATABASE_URL / LLM_API_KEY
+mkdir -p .ssh && vim .ssh/id_ed25519   # 放部署私钥（或直接复用已有的）
+node scripts/ops.mjs doctor   # 自检
+node scripts/ops.mjs bootstrap --domain ai.koiism.cn   # 目录 / bun / swap / PG / pm2 / nginx + 证书
+node scripts/ops.mjs env sync # 渲染并下发 apps/*/.env
+```
+
+然后把公钥加到服务器 `~/.ssh/authorized_keys`、把私钥存进 GitHub Secrets，push 到 `main` 即自动发布。
+
+---
+
+## 10. 部署与运维 Skill：`skills/deploy-ops`
+
+一个自包含的 Skill（SKILL.md + 脚本 + `.env`），把「发布 / 回滚 / 看日志 / 同步 `.env`」变成一条命令。CI 用它，人也用它——同一套实现。
+
+```bash
+node skills/deploy-ops/scripts/ops.mjs doctor          # 自检
+node skills/deploy-ops/scripts/ops.mjs deploy          # 本地构建 + 发布（CI 用 --skip-build）
+node skills/deploy-ops/scripts/ops.mjs env sync        # 改完 .env 后同步到服务器并重载
+node skills/deploy-ops/scripts/ops.mjs status|logs|restart|rollback|smoke|db|ssh
+```
+
+**敏感信息只在一处**：`skills/deploy-ops/.env`（已 gitignore）。详见 [`skills/deploy-ops/SKILL.md`](skills/deploy-ops/SKILL.md)。
+
+---
+
+## 11. 数据库
+
+```
+demo_runs                       demo_todos
+  id uuid pk                      id uuid pk
+  goal text                       run_id uuid fk → demo_runs.id (cascade)
+  model varchar(80)               title text
+  status enum                     detail text
+    (streaming|completed|failed)  priority varchar(16)
+  raw_output text                 position int
+  todo_count int                  created_at timestamptz
+  latency_ms int
+  error text
+  created_at timestamptz
+  completed_at timestamptz
+```
+
+改 schema：`bun run db:generate` → `bun run db:migrate`；上线由 CI 的隧道迁移完成，**迁移必须向前兼容**（expand → 双写/回填 → contract）。
+
+---
+
+## 12. 已知边界
+
+- 单租户 Demo：没有登录、组织、RBAC、配额。
+- CopilotKit 用最小 runtime，会话不落库。
+- 归档支持回看，尚不支持删除 / 导出 PDF / 任务状态回写。
+- 生产环境只有一台 ECS（无 LB、无多可用区）；备份依赖 PostgreSQL 自身与云盘快照。
+- 同一台机器上还跑着其他站点（例如 `:3000` 的旧应用），本项目用独立端口、独立目录、独立 nginx `server_name`，互不影响。
