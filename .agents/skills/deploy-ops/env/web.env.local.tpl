@@ -1,4 +1,4 @@
-# 由 deploy-ops `env sync` 从 skills/deploy-ops/.env 渲染生成。
+# 由 deploy-ops `env sync` 从 .agents/skills/deploy-ops/.env 渲染生成。
 # 注意：NEXT_PUBLIC_* 在 build 时被内联进客户端包，改域名必须重新构建（CI 会做）。
 NODE_ENV=production
 

@@ -12,12 +12,12 @@
 
 新起一个 AI Web 项目时，重复劳动集中在三处：前后端分离的类型契约、流式 AI 的用户体验、以及上线运维。这个模板把三件事都钉死：
 
-| 关注点   | 模板给的做法                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------- |
-| 类型契约 | Elysia `t` 模型是唯一声明来源；`App` 类型经 Eden Treaty 传到前端，零手写 DTO                       |
-| 流式体验 | 服务端 SSE（`meta/delta/todos/done/error`）+ Next 同源 BFF 转发，不缓冲字节                        |
-| 上线运维 | GitHub Actions 构建 → scp 发布包 → SSH 隧道迁移 → pm2 平滑重载 → 冒烟；本地用同一个 CLI 复现       |
-| 配置安全 | 敏感值只在 `skills/deploy-ops/.env`（已 gitignore）与服务器 `shared/*.env`，不进仓库、不进 CI 日志 |
+| 关注点   | 模板给的做法                                                                                               |
+| -------- | ---------------------------------------------------------------------------------------------------------- |
+| 类型契约 | Elysia `t` 模型是唯一声明来源；`App` 类型经 Eden Treaty 传到前端，零手写 DTO                               |
+| 流式体验 | 服务端 SSE（`meta/delta/todos/done/error`）+ Next 同源 BFF 转发，不缓冲字节                                |
+| 上线运维 | GitHub Actions 构建 → scp 发布包 → SSH 隧道迁移 → pm2 平滑重载 → 冒烟；本地用同一个 CLI 复现               |
+| 配置安全 | 敏感值只在 `.agents/skills/deploy-ops/.env`（已 gitignore）与服务器 `shared/*.env`，不进仓库、不进 CI 日志 |
 
 ---
 
@@ -77,7 +77,7 @@ flowchart LR
 │           └── store              # Zustand
 ├── packages/shared                # 前后端共享类型 + Task 解析器
 ├── deploy/ecosystem.config.cjs    # pm2 进程定义（pdm-web / pdm-api）
-├── skills/deploy-ops              # 部署·运维·.env 同步 Skill（见第 10 节）
+├── .agents/skills/deploy-ops      # 部署·运维·.env 同步 Skill（见第 10 节）
 ├── .github/workflows              # ci.yml + deploy.yml
 ├── docker-compose.yml             # 本地 PostgreSQL
 └── scripts/setup-env.ts           # 首次生成 .env
@@ -119,7 +119,7 @@ bun run dev              # 6) 并行起 web + api
 | 健康检查      | http://localhost:3101/api/health      |
 | OpenAPI UI    | http://localhost:3101/openapi         |
 
-> 后端默认 **3101**（避开常见的 3001 冲突）；生产上 web 用 3001、api 用 3101，改端口见 `skills/deploy-ops/.env`。
+> 后端默认 **3101**（避开常见的 3001 冲突）；生产上 web 用 3001、api 用 3101，改端口见 `.agents/skills/deploy-ops/.env`。
 
 ---
 
@@ -162,7 +162,7 @@ curl -N -X POST http://localhost:3101/api/demo \
 
 本地：`apps/server/.env`、`apps/web/.env.local`（由 `bun run setup:env` 生成）。
 
-生产：**不在 CI 里配**。它们由 `skills/deploy-ops` 从 `.env` 渲染到服务器的 `shared/server.env` 与 `shared/web.env.local`，再软链进 release。
+生产：**不在 CI 里配**。它们由 `.agents/skills/deploy-ops` 从 `.env` 渲染到服务器的 `shared/server.env` 与 `shared/web.env.local`，再软链进 release。
 
 | 变量                         | 位置         | 说明                                             |
 | ---------------------------- | ------------ | ------------------------------------------------ |
@@ -250,7 +250,7 @@ sequenceDiagram
 ### 首次上线（一次性）
 
 ```bash
-cd skills/deploy-ops
+cd .agents/skills/deploy-ops
 cp .env.example .env          # 填 DEPLOY_HOST / DB_PASSWORD / DATABASE_URL / LLM_API_KEY
 mkdir -p .ssh && vim .ssh/id_ed25519   # 放部署私钥（或直接复用已有的）
 node scripts/ops.mjs doctor   # 自检
@@ -262,18 +262,18 @@ node scripts/ops.mjs env sync # 渲染并下发 apps/*/.env
 
 ---
 
-## 10. 部署与运维 Skill：`skills/deploy-ops`
+## 10. 部署与运维 Skill：`.agents/skills/deploy-ops`
 
 一个自包含的 Skill（SKILL.md + 脚本 + `.env`），把「发布 / 回滚 / 看日志 / 同步 `.env`」变成一条命令。CI 用它，人也用它——同一套实现。
 
 ```bash
-node skills/deploy-ops/scripts/ops.mjs doctor          # 自检
-node skills/deploy-ops/scripts/ops.mjs deploy          # 本地构建 + 发布（CI 用 --skip-build）
-node skills/deploy-ops/scripts/ops.mjs env sync        # 改完 .env 后同步到服务器并重载
-node skills/deploy-ops/scripts/ops.mjs status|logs|restart|rollback|smoke|db|ssh
+node .agents/skills/deploy-ops/scripts/ops.mjs doctor          # 自检
+node .agents/skills/deploy-ops/scripts/ops.mjs deploy          # 本地构建 + 发布（CI 用 --skip-build）
+node .agents/skills/deploy-ops/scripts/ops.mjs env sync        # 改完 .env 后同步到服务器并重载
+node .agents/skills/deploy-ops/scripts/ops.mjs status|logs|restart|rollback|smoke|db|ssh
 ```
 
-**敏感信息只在一处**：`skills/deploy-ops/.env`（已 gitignore）。详见 [`skills/deploy-ops/SKILL.md`](skills/deploy-ops/SKILL.md)。
+**敏感信息只在一处**：`.agents/skills/deploy-ops/.env`（已 gitignore）。详见 [`.agents/skills/deploy-ops/SKILL.md`](.agents/skills/deploy-ops/SKILL.md)。
 
 ---
 

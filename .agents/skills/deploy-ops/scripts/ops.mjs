@@ -3,10 +3,10 @@
  * deploy-ops · 部署 / 运维 / 环境变量同步 CLI
  *
  * 一套实现，两个入口：
- *   · 本机运维（Windows / macOS / Linux）：node skills/deploy-ops/scripts/ops.mjs <cmd>
+ *   · 本机运维（Windows / macOS / Linux）：node .agents/skills/deploy-ops/scripts/ops.mjs <cmd>
  *   · GitHub Actions：同一个文件，配置全部由环境变量注入
  *
- * 配置优先级：环境变量 > skills/deploy-ops/.env > 内置默认值
+ * 配置优先级：环境变量 > .agents/skills/deploy-ops/.env > 内置默认值
  * 敏感值（SSH 私钥、DB 密码、LLM Key）只存在于 .env（已 gitignore）与服务器的 shared/*.env。
  */
 import { spawn, spawnSync } from 'node:child_process'
@@ -26,7 +26,8 @@ import { tmpdir } from 'node:os'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const SKILL_DIR = resolve(SCRIPT_DIR, '..')
-const REPO_ROOT = resolve(SKILL_DIR, '../..')
+// .agents/skills/deploy-ops/scripts -> 仓库根
+const REPO_ROOT = resolve(SKILL_DIR, '../../..')
 const REMOTE_DIR = join(SCRIPT_DIR, 'remote')
 
 // ─── 配置 ────────────────────────────────────────────────────────────────────
@@ -203,7 +204,11 @@ function sshBaseArgs() {
 /** 把若干 remote 脚本拼接后通过 stdin 交给远端 bash 执行 */
 function remoteScript(scripts, args = [], extraEnv = {}) {
   assertSshReady('ssh')
-  const body = scripts.map((name) => readFileSync(join(REMOTE_DIR, name), 'utf8')).join('\n')
+  // 防御性去 CR：Windows 上若 checkout 出 CRLF，远端 bash 会报
+  // `set: pipefail: invalid option name`（.gitattributes 已强制 *.sh 用 LF，这里是兜底）。
+  const body = scripts
+    .map((name) => readFileSync(join(REMOTE_DIR, name), 'utf8').replace(/\r\n/g, '\n'))
+    .join('\n')
   const exports = Object.entries({ ...remoteEnv(), ...extraEnv })
     .map(([key, value]) => `export ${key}=${shellQuote(value)}`)
     .join('\n')
@@ -266,10 +271,10 @@ const EXCLUDES = [
   './apps/server/.env',
   './apps/web/.env.local',
   './apps/web/.env.production',
-  './skills/deploy-ops/.env',
-  './skills/deploy-ops/.ssh',
-  './skills/deploy-ops/.state',
-  './skills/deploy-ops/releases',
+  './.agents/skills/deploy-ops/.env',
+  './.agents/skills/deploy-ops/.ssh',
+  './.agents/skills/deploy-ops/.state',
+  './.agents/skills/deploy-ops/releases',
 ]
 
 function gitSha() {
@@ -634,7 +639,7 @@ function printHelp() {
 ${C.bold}deploy-ops${C.reset} · 部署 / 运维 / 环境变量同步
 
 ${C.bold}用法${C.reset}
-  node skills/deploy-ops/scripts/ops.mjs <command> [options]
+  node .agents/skills/deploy-ops/scripts/ops.mjs <command> [options]
 
 ${C.bold}命令${C.reset}
   doctor                       检查 .env / 私钥 / SSH / 本机工具链

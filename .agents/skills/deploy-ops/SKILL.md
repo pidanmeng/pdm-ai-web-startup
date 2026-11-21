@@ -9,7 +9,7 @@ description: 部署、运维与 .env 同步。向阿里云 ECS（ai.koiism.cn / 
 GitHub Actions 的 `deploy.yml` 调用的就是这里的同一份脚本，所以「CI 能做的，本地也能做」。
 
 ```
-skills/deploy-ops/
+.agents/skills/deploy-ops/
 ├── SKILL.md                 # 本文件
 ├── .env                     # 真实配置与密钥（已 gitignore，永不提交）
 ├── .env.example             # 变量清单（提交）
@@ -27,16 +27,18 @@ skills/deploy-ops/
         └── smoke.sh         # 冒烟
 ```
 
+> 放在仓库的 `.agents/skills/` 下：DSH 会自动把这个目录识别为**项目级 Skill**（当前会话的 skill 列表里已经能看到 `deploy-ops`）。
+
 ---
 
 ## 0. 绝对前提（先满足再动命令）
 
-| 项     | 要求                                                                                                |
-| ------ | --------------------------------------------------------------------------------------------------- |
-| 服务器 | 阿里云 ECS `8.140.27.125`（北京，Alibaba Cloud Linux 3，2C2G），`root` 可 SSH                       |
-| 私钥   | `skills/deploy-ops/.ssh/id_ed25519`（`SSH_KEY_PATH` 可改），公钥已在服务器 `~/.ssh/authorized_keys` |
-| 配置   | `.env` 存在且 `DEPLOY_HOST` / `DB_PASSWORD` / `DATABASE_URL` / `LLM_API_KEY` 已填                   |
-| 本机   | `node ≥ 18`、`ssh`；本机构建时才需要 `bun`                                                          |
+| 项     | 要求                                                                                                        |
+| ------ | ----------------------------------------------------------------------------------------------------------- |
+| 服务器 | 阿里云 ECS `8.140.27.125`（北京，Alibaba Cloud Linux 3，2C2G），`root` 可 SSH                               |
+| 私钥   | `.agents/skills/deploy-ops/.ssh/id_ed25519`（`SSH_KEY_PATH` 可改），公钥已在服务器 `~/.ssh/authorized_keys` |
+| 配置   | `.env` 存在且 `DEPLOY_HOST` / `DB_PASSWORD` / `DATABASE_URL` / `LLM_API_KEY` 已填                           |
+| 本机   | `node ≥ 18`、`ssh`；本机构建时才需要 `bun`                                                                  |
 
 自检：
 
@@ -223,19 +225,21 @@ node scripts/ops.mjs db url          # 打印（打码后的）连接串
 
 ---
 
-## 6. 作为 DSH Skill 安装（可选）
+## 6. 作为 DSH Skill 使用
 
-Skill 目录就在仓库里。想让它出现在 DSH 的 skill 列表里，软链到 `~/.agents/skills/`：
+Skill 就在仓库的 `.agents/skills/deploy-ops/`，**DSH 会自动识别项目级 Skill**：在项目里开会话，skill 列表里就有 `deploy-ops`，直接说「发布 / 回滚 / 看日志 / 同步 env」即可触发。
+
+如果想在**其他项目**里也能用同一份，软链到用户级目录（`~/.agents/skills/`）时需要把 `.env`、`.ssh/` 一起考虑——它们是 gitignore 的本机文件，软链到用户级只会共享同一份，不会复制：
 
 ```powershell
 # Windows（需开发者模式或管理员）
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.agents\skills\deploy-ops" `
-  -Target "C:\Code\pdm-ai-web-startup\skills\deploy-ops"
+  -Target "C:\Code\pdm-ai-web-startup\.agents\skills\deploy-ops"
 ```
 
 ```bash
 # macOS / Linux
-ln -s "$(pwd)/skills/deploy-ops" ~/.agents/skills/deploy-ops
+ln -s "$(pwd)/.agents/skills/deploy-ops" ~/.agents/skills/deploy-ops
 ```
 
-`.env` 与 `.ssh/` 只在本机，不随仓库分发；换一台机器要重新放一把私钥（公钥进服务器 `authorized_keys`）并填 `.env`。
+`.env` 与 `.ssh/` 只在本机，不随仓库分发；换一台机器（比如公司 Mac mini）要重新放一把私钥（公钥进服务器 `authorized_keys`）并填 `.env`。

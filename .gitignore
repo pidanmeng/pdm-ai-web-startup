@@ -24,13 +24,13 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.*.local
 
 # deploy / ops skill：真实密钥只存在本地，永不进仓库
-skills/deploy-ops/.env
-skills/deploy-ops/.ssh/
-skills/deploy-ops/.state/
-skills/deploy-ops/releases/
+.agents/skills/deploy-ops/.env
+.agents/skills/deploy-ops/.ssh/
+.agents/skills/deploy-ops/.state/
+.agents/skills/deploy-ops/releases/
 # 例外：模板文件必须提交
-!skills/deploy-ops/.env.example
-!skills/deploy-ops/env/*.tpl
+!.agents/skills/deploy-ops/.env.example
+!.agents/skills/deploy-ops/env/*.tpl
 
 # caches
 .eslintcache

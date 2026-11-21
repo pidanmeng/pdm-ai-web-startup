@@ -11,8 +11,8 @@ name: Deploy (Aliyun ECS)
 #           → 解包切换 release → pm2 startOrReload → 冒烟
 #
 # 它【不】做的事（一次性手工/脚本配置，CI 不碰）：
-#   · 安装 nginx / bun / PostgreSQL，写 nginx 站点，申请证书  → skills/deploy-ops 的 bootstrap
-#   · 写 apps/*/.env（CI 只检查存在，不写内容）              → skills/deploy-ops 的 env sync
+#   · 安装 nginx / bun / PostgreSQL，写 nginx 站点，申请证书  → .agents/skills/deploy-ops 的 bootstrap
+#   · 写 apps/*/.env（CI 只检查存在，不写内容）              → .agents/skills/deploy-ops 的 env sync
 #   · pm2 开机自启注册                                       → bootstrap 里做一次
 #
 # 需要的 Secrets（Settings → Secrets and variables → Actions）：
@@ -135,7 +135,7 @@ jobs:
             grep -q '^LLM_API_KEY=sk-' "$APP_DIR/shared/server.env" || { echo "BAD LLM_API_KEY"; fail=1; }
           fi
           if [ "\$fail" = "1" ]; then
-            echo "::error::服务器 env 未就绪。在本地执行：node skills/deploy-ops/scripts/ops.mjs env sync"
+            echo "::error::服务器 env 未就绪。在本地执行：node .agents/skills/deploy-ops/scripts/ops.mjs env sync"
             exit 1
           fi
           echo "OK  服务器 env 就绪"
@@ -153,12 +153,12 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ env.PUBLIC_ORIGIN }}/elysia
 
       # 打包 / 上传 / 迁移（SSH 隧道）/ 切换 release / 冒烟，全部走同一个 CLI，
-      # 与本地运维（skills/deploy-ops）是同一套实现。
+      # 与本地运维（.agents/skills/deploy-ops）是同一套实现。
       - name: Deploy to ECS
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: node skills/deploy-ops/scripts/ops.mjs deploy --skip-build
+        run: node .agents/skills/deploy-ops/scripts/ops.mjs deploy --skip-build
 
       - name: Summary
         if: always()
@@ -218,13 +218,13 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${TARGET_SHA:-}" ]; then
-            node skills/deploy-ops/scripts/ops.mjs rollback --sha "$TARGET_SHA"
+            node .agents/skills/deploy-ops/scripts/ops.mjs rollback --sha "$TARGET_SHA"
           else
-            node skills/deploy-ops/scripts/ops.mjs rollback
+            node .agents/skills/deploy-ops/scripts/ops.mjs rollback
           fi
 
       - name: Smoke (public)
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-        run: node skills/deploy-ops/scripts/ops.mjs smoke --no-stream
+        run: node .agents/skills/deploy-ops/scripts/ops.mjs smoke --no-stream

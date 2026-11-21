@@ -59,7 +59,7 @@ switch_release() {
   require_bun
   [ -f "$tgz" ] || die "找不到 $tgz（先上传：ops.mjs upload / CI 的 scp 步骤）"
   for f in "$SHARED_DIR/server.env" "$SHARED_DIR/web.env.local"; do
-    [ -s "$f" ] || die "缺少 $f，先在本地执行：node skills/deploy-ops/scripts/ops.mjs env sync"
+    [ -s "$f" ] || die "缺少 $f，先在本地执行：node .agents/skills/deploy-ops/scripts/ops.mjs env sync"
   done
 
   log "1/5 展开代码（保留 node_modules）"

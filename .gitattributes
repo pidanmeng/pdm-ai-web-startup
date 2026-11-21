@@ -1,0 +1,9 @@
+# shell 脚本会被原样管道给远端 bash 执行，必须是 LF。
+# Windows 上 core.autocrlf=true 时，没有这行会让 checkout 出来的脚本带上 CR，
+# 远端报 `set: pipefail: invalid option name`。
+*.sh text eol=lf
+*.tpl text eol=lf
+
+# Windows 批处理若将来出现，保持 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf

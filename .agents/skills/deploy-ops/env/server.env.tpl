@@ -1,4 +1,4 @@
-# 由 deploy-ops `env sync` 从 skills/deploy-ops/.env 渲染生成。
+# 由 deploy-ops `env sync` 从 .agents/skills/deploy-ops/.env 渲染生成。
 # 不要在服务器上直接编辑：下次同步会被覆盖。
 NODE_ENV=production
 
